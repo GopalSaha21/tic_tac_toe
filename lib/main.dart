@@ -80,7 +80,7 @@ class FirestoreService {
     }
   }
 
-  // Get all matches (real-time)
+  // Get all matches (real-time data fatchs)
   Stream<List<MatchModel>> getAllMatches() {
     return _firestore
         .collection(collectionName)
