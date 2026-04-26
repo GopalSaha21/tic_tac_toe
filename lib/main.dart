@@ -5,9 +5,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
+  // Flutter framework ke ensure korbe je widgets tree ready - async operation er jonno required
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
+  // Firebase initialize korchi - app er backend connection setup
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyAmdzfG8IEmu-fpYyFI7X0LrjihkgvCBXY',
@@ -27,7 +28,9 @@ class TicTacToeApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Game logic er state manage korbe - ChangeNotifierProvider use kore UI auto rebuild hobe
         ChangeNotifierProvider(create: (_) => GameProvider()),
+        // Firebase service - dependency injection er moto, anywhere use kora jabe
         Provider(create: (_) => FirestoreService()),
       ],
       child: MaterialApp(
@@ -36,8 +39,8 @@ class TicTacToeApp extends StatelessWidget {
         theme: ThemeData(
           brightness: Brightness.dark,
           primarySwatch: Colors.blue,
-          useMaterial3: true,
-          scaffoldBackgroundColor: const Color(0xFF0F172A),
+          useMaterial3: true, // latest Material design
+          scaffoldBackgroundColor: const Color(0xFF0F172A), // slate dark color
           appBarTheme: const AppBarTheme(
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -56,7 +59,7 @@ class TicTacToeApp extends StatelessWidget {
 }
 
 // ============================================================
-// Firebase Service
+// Firebase Service - all database operations
 // ============================================================
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -70,22 +73,22 @@ class FirestoreService {
         'playerO': match.playerO,
         'winner': match.winner,
         'board': match.board,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(), // Firebase server time
         'result': match.result,
       });
       print('✅ Match saved to Firebase!');
     } catch (e) {
       print('❌ Error saving to Firebase: $e');
-      rethrow;
+      rethrow; // Error re-throw korlam jate caller handle korte pare
     }
   }
 
-  // Get all matches (real-time data fatchs)
+  // Get all matches - real-time stream
   Stream<List<MatchModel>> getAllMatches() {
     return _firestore
         .collection(collectionName)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
+        .orderBy('createdAt', descending: true) // latest first
+        .snapshots() // real-time listener
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         return MatchModel.fromFirestore(doc);
@@ -93,12 +96,12 @@ class FirestoreService {
     });
   }
 
-  // Get limited number of recent matches
+  // Get limited number of recent matches for performance
   Stream<List<MatchModel>> getRecentMatches({int limit = 50}) {
     return _firestore
         .collection(collectionName)
         .orderBy('createdAt', descending: true)
-        .limit(limit)
+        .limit(limit) // only fetch 50 records
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
@@ -118,11 +121,11 @@ class FirestoreService {
     }
   }
 
-  // Delete all matches
+  // Delete all matches using batch operation
   Future<void> deleteAllMatches() async {
     try {
       final matches = await _firestore.collection(collectionName).get();
-      final batch = _firestore.batch();
+      final batch = _firestore.batch(); // multiple operations in single network call
       
       for (var doc in matches.docs) {
         batch.delete(doc.reference);
@@ -134,28 +137,6 @@ class FirestoreService {
       print('❌ Error deleting all matches: $e');
       rethrow;
     }
-  }
-
-  // Get global statistics
-  Future<Map<String, int>> getGlobalStats() async {
-    final matches = await _firestore.collection(collectionName).get();
-    
-    int xWins = 0;
-    int oWins = 0;
-    int draws = 0;
-    
-    for (var doc in matches.docs) {
-      final winner = doc['winner'] as String;
-      if (winner == 'X') xWins++;
-      else if (winner == 'O') oWins++;
-      else if (winner == 'Tie') draws++;
-    }
-    
-    return {
-      'xWins': xWins,
-      'oWins': oWins,
-      'draws': draws,
-    };
   }
 }
 
@@ -181,6 +162,7 @@ class MatchModel {
     required this.result,
   });
 
+  // Convert Firestore document to MatchModel
   factory MatchModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return MatchModel(
@@ -194,6 +176,7 @@ class MatchModel {
     );
   }
 
+  // Convert MatchModel to Map for Firebase
   Map<String, dynamic> toMap() {
     return {
       'playerX': playerX,
@@ -206,6 +189,7 @@ class MatchModel {
   }
 }
 
+// Local match result model
 class MatchResult {
   final String playerX;
   final String playerO;
@@ -224,8 +208,8 @@ class MatchResult {
 // Game Provider (State Management)
 // ============================================================
 class GameProvider extends ChangeNotifier {
-  List<String> _board = List.filled(9, '');
-  String _currentPlayer = 'X';
+  List<String> _board = List.filled(9, ''); // 9 cells, empty string means empty
+  String _currentPlayer = 'X'; // X always starts
   bool _gameActive = true;
 
   String _playerXName = 'Player X';
@@ -238,6 +222,7 @@ class GameProvider extends ChangeNotifier {
   List<MatchResult> _history = [];
   bool _isSaving = false;
 
+  // Getters - private fields access korar jonno
   List<String> get board => _board;
   String get currentPlayer => _currentPlayer;
   bool get gameActive => _gameActive;
@@ -249,12 +234,14 @@ class GameProvider extends ChangeNotifier {
   List<MatchResult> get history => _history;
   bool get isSaving => _isSaving;
 
+  // All winning combinations in Tic Tac Toe
   static const List<List<int>> winPatterns = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6],
+    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+    [0, 4, 8], [2, 4, 6], // diagonals
   ];
 
+  // Check if any player has won
   String? checkWinner() {
     for (var pattern in winPatterns) {
       if (pattern.every((i) => _board[i] == 'X')) return 'X';
@@ -263,15 +250,18 @@ class GameProvider extends ChangeNotifier {
     return null;
   }
 
+  // Check if game is a draw (board full but no winner)
   bool isDraw() {
     return _board.every((cell) => cell.isNotEmpty) && checkWinner() == null;
   }
 
+  // Main game logic - called when player taps a cell
   void makeMove(int index) {
+    // Validation: if game inactive, cell filled, or saving then ignore
     if (!_gameActive || _board[index].isNotEmpty || _isSaving) return;
 
     _board[index] = _currentPlayer;
-    notifyListeners();
+    notifyListeners(); // Trigger UI rebuild
 
     final winner = checkWinner();
     if (winner != null) {
@@ -297,12 +287,14 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
+    // Switch player for next turn
     _currentPlayer = (_currentPlayer == 'X') ? 'O' : 'X';
     notifyListeners();
   }
 
+  // Save match result to local history and Firebase
   Future<void> _saveMatchResult(String resultText, String winner) async {
-    // Save locally
+    // Save locally first for instant feedback
     final match = MatchResult(
       playerX: _playerXName,
       playerO: _playerOName,
@@ -310,9 +302,9 @@ class GameProvider extends ChangeNotifier {
       timestamp: DateTime.now(),
     );
     _history.insert(0, match);
-    if (_history.length > 20) _history.removeLast();
+    if (_history.length > 20) _history.removeLast(); // Keep only recent 20
 
-    // Try to save to Firebase
+    // Save to Firebase
     try {
       final firestoreService = FirestoreService();
       final firestoreMatch = MatchModel(
@@ -325,7 +317,7 @@ class GameProvider extends ChangeNotifier {
       );
       
       _isSaving = true;
-      notifyListeners();
+      notifyListeners(); // Show loading indicator
       
       await firestoreService.saveMatch(firestoreMatch);
     } catch (e) {
@@ -336,25 +328,22 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  // Reset only the board (keep scores)
   void resetBoard() {
     _board = List.filled(9, '');
     _gameActive = true;
     _currentPlayer = 'X';
-
     notifyListeners();
   }
 
-  void switchStartingPlayer() {
-    _currentPlayer = (_currentPlayer == 'X') ? 'O' : 'X';
-    resetBoard();
-  }
-
+  // Update player names from text fields
   void updatePlayerNames({required String xName, required String oName}) {
     _playerXName = xName.trim().isEmpty ? 'Player X' : xName.trim();
     _playerOName = oName.trim().isEmpty ? 'Player O' : oName.trim();
     notifyListeners();
   }
 
+  // Reset everything - scores, history, board
   void resetScoresAndHistory() {
     _xWins = 0;
     _oWins = 0;
@@ -364,6 +353,7 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Show winner dialog when game ends
   void showWinnerDialog(BuildContext context) {
     if (!_gameActive && !_isSaving) {
       String winnerMessage = '';
@@ -399,7 +389,7 @@ class GameProvider extends ChangeNotifier {
 }
 
 // ============================================================
-// Splash Screen
+// Splash Screen - App start animation
 // ============================================================
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -409,7 +399,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin { // AnimationController er jonno vsync needed
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -417,20 +407,24 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+    // Animation controller - duration 2 seconds
     _controller = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     );
+    // Fade animation from 0 to 1
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
+    // Scale animation for zoom effect
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
-    _controller.forward();
+    _controller.forward(); // Start animation
 
+    // Navigate to home after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
+      if (mounted) { // Check if widget still in tree
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const GameHomeScreen()),
@@ -441,7 +435,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller.dispose(); // Cleanup animation controller
     super.dispose();
   }
 
@@ -460,6 +454,7 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Animated logo container
                     Container(
                       width: 100,
                       height: 100,
@@ -520,7 +515,7 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 // ============================================================
-// Game Home Screen
+// Game Home Screen - Main UI
 // ============================================================
 class GameHomeScreen extends StatefulWidget {
   const GameHomeScreen({super.key});
@@ -530,8 +525,10 @@ class GameHomeScreen extends StatefulWidget {
 }
 
 class _GameHomeScreenState extends State<GameHomeScreen> {
+  // Bottom navigation selected index tracking
   int _selectedNavIndex = 0;
 
+  // Dialog for editing player names
   void _showEditNamesDialog(GameProvider provider) {
     final xController = TextEditingController(text: provider.playerXName);
     final oController = TextEditingController(text: provider.playerOName);
@@ -579,93 +576,11 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
     );
   }
 
-  void _showStatsDialog(GameProvider provider) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A2535),
-            borderRadius: BorderRadius.circular(36),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.insights, color: Colors.cyanAccent),
-                  SizedBox(width: 10),
-                  Text(
-                    'Statistics',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _StatRow(
-                label: '✕ ${provider.playerXName}',
-                value: provider.xWins,
-                color: Colors.cyanAccent,
-              ),
-              _StatRow(
-                label: '● ${provider.playerOName}',
-                value: provider.oWins,
-                color: Colors.pinkAccent,
-              ),
-              _StatRow(
-                label: 'Draws',
-                value: provider.draws,
-                color: Colors.white70,
-              ),
-              if (provider.history.isNotEmpty) ...[
-                const Divider(height: 32, color: Colors.white24),
-                const Text(
-                  'Recent Matches',
-                  style: TextStyle(color: Colors.white54, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                ...provider.history.take(5).map((entry) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        entry.result,
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    )),
-              ],
-              const SizedBox(height: 20),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () {
-                    provider.resetScoresAndHistory();
-                    Navigator.pop(context);
-                  },
-                  icon: const Icon(Icons.refresh, color: Colors.redAccent),
-                  label: const Text(
-                    'Reset All',
-                    style: TextStyle(color: Colors.redAccent),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<GameProvider>(context);
 
+    // Show winner dialog when game ends
     if (!provider.gameActive && provider.history.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         provider.showWinnerDialog(context);
@@ -676,25 +591,17 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
       appBar: AppBar(
         title: const Text('Tic Tac Toe'),
         actions: [
+          // Only edit names button - history button removed from appbar
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Change Names',
             onPressed: () => _showEditNamesDialog(provider),
           ),
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Match History',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryScreen()),
-              );
-            },
-          ),
         ],
       ),
       body: Column(
         children: [
+          // Score card - shows current scores
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -728,6 +635,8 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
               ],
             ),
           ),
+          
+          // Current player turn indicator
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -768,8 +677,12 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
             ),
           ),
           const SizedBox(height: 20),
+          
+          // Loading indicator while saving to Firebase
           if (provider.isSaving)
             const LinearProgressIndicator(),
+          
+          // Game board grid
           Expanded(
             child: Center(
               child: ConstrainedBox(
@@ -796,12 +709,15 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
               ),
             ),
           ),
+          
+          // Bottom Navigation Bar - 3 buttons (Board, Reset, History)
           _buildModernBottomNav(provider),
         ],
       ),
     );
   }
 
+  // Modern bottom navigation with 3 buttons
   Widget _buildModernBottomNav(GameProvider provider) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -828,8 +744,9 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
         border: Border.all(color: Colors.white12, width: 1),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          // Board button - returns to game board
           _NavItem(
             icon: Icons.grid_3x3,
             label: 'Board',
@@ -837,6 +754,8 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
             selectedIndex: _selectedNavIndex,
             onTap: () => setState(() => _selectedNavIndex = 0),
           ),
+          
+          // Reset button - resets current game
           _NavItem(
             icon: Icons.refresh,
             label: 'Reset',
@@ -854,20 +773,27 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
                   shape: StadiumBorder(),
                 ),
               );
+              // Reset selection after animation
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted) setState(() => _selectedNavIndex = 0);
               });
             },
           ),
+          
+          // History button - navigates to match history screen
           _NavItem(
-            icon: Icons.bar_chart,
-            label: 'Stats',
+            icon: Icons.history,
+            label: 'History',
             index: 2,
             selectedIndex: _selectedNavIndex,
             onTap: () {
               setState(() => _selectedNavIndex = 2);
-              _showStatsDialog(provider);
-              Future.delayed(const Duration(milliseconds: 500), () {
+              // Navigate to history screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              ).then((_) {
+                // Reset selection when returning from history
                 if (mounted) setState(() => _selectedNavIndex = 0);
               });
             },
@@ -878,6 +804,7 @@ class _GameHomeScreenState extends State<GameHomeScreen> {
   }
 }
 
+// Individual game cell widget
 class GameCell extends StatelessWidget {
   final int index;
   const GameCell({super.key, required this.index});
@@ -910,7 +837,7 @@ class GameCell extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             child: Text(
               value == 'X' ? '✕' : (value == 'O' ? '●' : ''),
-              key: ValueKey(value),
+              key: ValueKey(value), // For animation
               style: TextStyle(
                 fontSize: 48,
                 fontWeight: FontWeight.bold,
@@ -918,7 +845,7 @@ class GameCell extends StatelessWidget {
                     ? Colors.cyanAccent
                     : isO
                         ? Colors.pinkAccent
-                        : Colors.transparent,
+                        : Colors.transparent, // Empty cells are invisible
               ),
             ),
           ),
@@ -928,6 +855,7 @@ class GameCell extends StatelessWidget {
   }
 }
 
+// Score tile for scoreboard display
 class _ScoreTile extends StatelessWidget {
   final String name;
   final String symbol;
@@ -965,6 +893,7 @@ class _ScoreTile extends StatelessWidget {
   }
 }
 
+// Bottom navigation item - animated on selection
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1035,49 +964,14 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _StatRow extends StatelessWidget {
-  final String label;
-  final int value;
-  final Color color;
-  const _StatRow({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          Text(
-            value.toString(),
-            style: TextStyle(
-              color: color,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ============================================================
-// History Screen with Individual Delete Button
+// History Screen - Shows all matches from Firebase
 // ============================================================
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
+  // Delete single match with confirmation
   Future<void> _deleteMatch(BuildContext context, String matchId, String matchResult) async {
-    // Show confirmation dialog
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -1133,6 +1027,7 @@ class HistoryScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Match History'),
         actions: [
+          // Delete all matches button
           IconButton(
             icon: const Icon(Icons.delete_sweep),
             tooltip: 'Clear All History',
@@ -1176,6 +1071,7 @@ class HistoryScreen extends StatelessWidget {
       body: StreamBuilder<List<MatchModel>>(
         stream: firestoreService.getRecentMatches(limit: 50),
         builder: (context, snapshot) {
+          // Handle error state
           if (snapshot.hasError) {
             return Center(
               child: Column(
@@ -1194,6 +1090,7 @@ class HistoryScreen extends StatelessWidget {
             );
           }
 
+          // Show loading indicator
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(),
@@ -1202,6 +1099,7 @@ class HistoryScreen extends StatelessWidget {
 
           final matches = snapshot.data ?? [];
 
+          // Show empty state
           if (matches.isEmpty) {
             return const Center(
               child: Column(
@@ -1219,6 +1117,7 @@ class HistoryScreen extends StatelessWidget {
             );
           }
 
+          // Display list of matches
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: matches.length,
@@ -1227,6 +1126,7 @@ class HistoryScreen extends StatelessWidget {
               final formattedDate = DateFormat('dd MMM yyyy, hh:mm a')
                   .format(match.createdAt);
               
+              // Set color and icon based on winner
               Color resultColor;
               IconData resultIcon;
               if (match.winner == 'X') {
@@ -1240,6 +1140,7 @@ class HistoryScreen extends StatelessWidget {
                 resultIcon = Icons.handshake;
               }
               
+              // Dismissible allows swipe-to-delete
               return Dismissible(
                 key: Key(match.id ?? DateTime.now().toString()),
                 direction: DismissDirection.endToStart,
