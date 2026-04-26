@@ -340,6 +340,7 @@ class GameProvider extends ChangeNotifier {
     _board = List.filled(9, '');
     _gameActive = true;
     _currentPlayer = 'X';
+
     notifyListeners();
   }
 
